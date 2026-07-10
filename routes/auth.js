@@ -4,11 +4,10 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const User = require("../models/User"); // Model mapping
 
-// 📝 ROUTE 1: REGISTRATION (Handles both Users and Admins dynamic logic)
+// 📝 ROUTE 1: REGISTRATION (Public signup — always creates a standard User)
 router.post("/register", async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
-
+    const { name, email, password } = req.body;
     if (!name || !email || !password) {
       return res
         .status(400)
@@ -17,34 +16,31 @@ router.post("/register", async (req, res) => {
 
     const cleanEmail = email.toLowerCase().trim();
     const userExists = await User.findOne({ email: cleanEmail });
-
     if (userExists) {
       return res
         .status(400)
         .json({ message: "This email is already registered." });
     }
 
-    // Role dynamic fallback rules: Agar explicit frontend se user role nahi aaya toh default 'user'
+    // Security: public registration can NEVER create an admin account,
+    // regardless of what the client sends in the request body.
+    // Admins are provisioned manually (e.g. directly in the database).
     const user = new User({
       name,
       email: cleanEmail,
       password,
-      role: role || "user",
+      role: "user",
     });
 
     await user.save();
-    return res
-      .status(201)
-      .json({
-        message: `Account verified and built successfully as ${user.role.toUpperCase()}!`,
-      });
+    return res.status(201).json({
+      message: "Account created successfully! Please login.",
+    });
   } catch (error) {
-    return res
-      .status(500)
-      .json({
-        message: "Server error during registration",
-        error: error.message,
-      });
+    return res.status(500).json({
+      message: "Server error during registration",
+      error: error.message,
+    });
   }
 });
 
@@ -52,7 +48,6 @@ router.post("/register", async (req, res) => {
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-
     if (!email || !password) {
       return res
         .status(400)
